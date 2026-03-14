@@ -7,7 +7,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 const isClaudeAI = window.location.hostname.includes("claude") || window.location.hostname.includes("claudeusercontent");
 const API_URL = isClaudeAI
   ? "https://api.anthropic.com/v1/messages"
-  : "/api/anthropic/v1/messages";
+  : "/.netlify/functions/anthropic";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LIB — KEYWORD ROUTER (score-based, not first-match)

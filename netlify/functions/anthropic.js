@@ -11,12 +11,22 @@ const handler = async (event) => {
     };
   }
 
+  // Debug — log everything we receive
+  const debug = {
+    method: event.httpMethod,
+    hasBody: !!event.body,
+    bodyLength: event.body ? event.body.length : 0,
+    isBase64: event.isBase64Encoded,
+    headers: event.headers,
+    bodyPreview: event.body ? event.body.substring(0, 100) : null,
+  };
+
   try {
-    if (!event.body) {
+    if (!event.body || event.body.trim() === "") {
       return {
         statusCode: 400,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "No body received" }),
+        body: JSON.stringify({ error: "No body received", debug }),
       };
     }
 
@@ -46,7 +56,7 @@ const handler = async (event) => {
     return {
       statusCode: 500,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ error: err.message }),
+      body: JSON.stringify({ error: err.message, debug }),
     };
   }
 };

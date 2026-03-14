@@ -3,5 +3,8 @@
   publish = "dist"
   functions = "netlify/functions"
 
-[functions]
-  node_bundler = "esbuild"
+[[redirects]]
+  from = "/api/anthropic/v1/messages"
+  to = "/.netlify/functions/anthropic"
+  status = 200
+  force = true

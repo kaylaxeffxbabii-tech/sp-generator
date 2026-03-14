@@ -300,9 +300,49 @@ function generateArchetype(name, appearance) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // LIB — WARDROBE BUILDER
 // ═══════════════════════════════════════════════════════════════════════════════
-function buildWardrobeBlock(subject, eventDesc, styleLabel) {
+// Items that exist below the waist — suppress when camera crops them out
+const BELOW_WAIST_TERMS = [
+  /(boots?|heels?|shoes?|sneakers?|sandals?|pumps?|stilettos?|platforms?|footwear|loafers?)/gi,
+  /(trousers?|pants?|jeans?|shorts?|skirts?|leggings?|tights?|stockings?|thigh[- ]highs?)/gi,
+  /(thigh|knee|ankle|calves?|legs?|feet|foot)/gi,
+];
+const BELOW_SHOULDER_TERMS = [
+  ...BELOW_WAIST_TERMS,
+  /(corset|bustier|bodysuit|crop[- ]top|bralette|bikini[- ]top|torso|waist|midriff|stomach|abs|chest|décolletage|neckline)/gi,
+  /(sleeves?|arms?|hands?|wrists?|rings?|bracelets?|cuffs?|gloves?|nail[s]?)/gi,
+];
+
+function stripBelowCrop(text, cameraKey) {
+  if (!text) return text;
+  if (cameraKey === "waistUp") {
+    let s = text;
+    BELOW_WAIST_TERMS.forEach(r => { s = s.replace(r, "[not in frame]"); });
+    return s.replace(/,?\s*\[not in frame\](\s*,\s*\[not in frame\])*/g, "").replace(/,\s*$/, "").trim();
+  }
+  if (cameraKey === "beautyClose") {
+    let s = text;
+    BELOW_SHOULDER_TERMS.forEach(r => { s = s.replace(r, "[not in frame]"); });
+    return s.replace(/,?\s*\[not in frame\](\s*,\s*\[not in frame\])*/g, "").replace(/,\s*$/, "").trim();
+  }
+  return text;
+}
+
+function buildWardrobeBlock(subject, eventDesc, styleLabel, cameraKey) {
   if (subject.wardrobe?.trim()) {
+    const stripped = stripBelowCrop(subject.wardrobe.trim(), cameraKey);
+    if (cameraKey === "beautyClose") {
+      return `[VISIBLE STYLING — face/neck/shoulders only, render exactly as specified]: ${stripped}. Render only what is visible above the shoulder line — face makeup, hair styling, neck/ear jewelry, skin texture.`;
+    }
+    if (cameraKey === "waistUp") {
+      return `[OUTFIT — waist-up crop, render only visible elements]: ${stripped}. Do NOT render footwear, leg styling, or anything below the waist.`;
+    }
     return `[OUTFIT — render exactly as specified, do not alter or omit]: ${subject.wardrobe.trim()}`;
+  }
+  if (cameraKey === "beautyClose") {
+    return `[VISIBLE STYLING — face/neck/shoulders only]: Assign face and hair styling appropriate to ${eventDesc} in ${styleLabel} aesthetic. Must include: makeup direction (eye, lip, skin finish), hair styling (structure, texture, finish), neck and ear jewelry only. No body or outfit styling — only what appears above the shoulder line.`;
+  }
+  if (cameraKey === "waistUp") {
+    return `[OUTFIT — waist-up only]: Assign upper-body styling appropriate to ${eventDesc} in ${styleLabel} aesthetic. Must include: top garment with fabric and silhouette, visible sleeve/arm styling, jewelry visible above waist, hair styling, makeup direction, nail styling. Do NOT assign footwear or lower-body garments.`;
   }
   return `[OUTFIT — mandatory, fully render]: Assign a complete look appropriate to ${eventDesc} in ${styleLabel} aesthetic. Must include: primary garment with fabric and silhouette, secondary layers, footwear style, accessories, jewelry, nail styling, hair styling, and makeup direction. Avoid plain basics, default neutrals, or unfinished styling.`;
 }
@@ -450,9 +490,35 @@ function buildLightingBlock(worldProfile) {
 
 function buildSubjectCompositionDirective(subjectMode, subjects, mainIdx) {
   const mainName = subjects[mainIdx]?.name || "Figure 1";
-  if (subjectMode === "main") return `Composition: ${mainName} is the visual anchor — primary figure dominates, key light focused on them, secondary figures orbit in complementary positions.`;
-  if (subjectMode === "equal") return `Composition: all ${subjects.length} figures share equal visual weight and lighting — symmetrical editorial balance, no figure dominates.`;
-  return `Composition: all ${subjects.length} figures caught mid-action — organic overlap, spontaneous gesture, peak emotional moment.`;
+  const count = subjects.length;
+
+  // spatial position maps — ensures every figure gets an explicit named position
+  const spatialMaps = {
+    1: ["center frame"],
+    2: ["frame left", "frame right"],
+    3: ["frame left foreground", "center midground", "frame right foreground"],
+    4: ["far left", "center-left", "center-right", "far right"],
+  };
+  const positions = spatialMaps[Math.min(count, 4)] || spatialMaps[4];
+
+  const figurePositions = subjects.map((s, i) => {
+    const name = s.name?.trim() || `Figure ${i + 1}`;
+    return `${name} at ${positions[i] || `position ${i + 1}`}`;
+  }).join("; ");
+
+  if (subjectMode === "main") {
+    const others = subjects.filter((_, i) => i !== mainIdx).map((s, i) => {
+      const name = s.name?.trim() || `Figure ${mainIdx === 0 ? i + 2 : i + 1}`;
+      return `${name} at ${positions[mainIdx === 0 ? i + 1 : i] || "supporting position"}`;
+    }).join("; ");
+    return `Spatial layout: ${mainName} is the visual anchor at ${positions[mainIdx] || "center"}${others ? ` — supporting figures: ${others}` : ""}. Key light locked on ${mainName}, secondary figures integrated into scene spatially, not floating.`;
+  }
+
+  if (subjectMode === "equal") {
+    return `Spatial layout: all ${count} figures share equal visual weight — ${figurePositions}. Each figure fully occupies their designated spatial zone, no overlapping or crowding. Lighting equal across all positions.`;
+  }
+
+  return `Spatial layout: all ${count} figures in dynamic interaction — ${figurePositions}. Each figure physically connected to the scene at their position — touching props, leaning on surfaces, occupying space. Organic overlap permitted at edges, peak action moment.`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -468,9 +534,23 @@ const FRAMING_SCENE_RULES = {
   overhead:     "FRAMING — overhead bird's eye: camera directly above looking straight down. Describe what is seen from above — tops of heads, shoulders, hands, floor surface patterns. Figures may be lying, sitting, or standing but are seen from above. Ground and floor textures are dominant.",
 };
 
-function buildSceneApiPrompt(profile, cameraModeKey, isReroll) {
+function buildSceneApiPrompt(profile, cameraModeKey, isReroll, subjectCount) {
   const framingRule = FRAMING_SCENE_RULES[cameraModeKey] || FRAMING_SCENE_RULES.fullBody;
   const newInstruction = isReroll ? "These must be entirely different from any previous scenes — different locations, different props, different emotional beats." : "";
+  const count = subjectCount || 2;
+
+  // spatial layout hint — tells Claude how to write scenes for 3+ figures
+  const spatialMaps = {
+    1: "single figure",
+    2: "two figures — left figure and right figure",
+    3: "three figures — left foreground figure, center midground figure, right foreground figure",
+    4: "four figures — far left, center-left, center-right, far right",
+  };
+  const spatialHint = spatialMaps[Math.min(count, 4)] || spatialMaps[4];
+  const subjectNote = count >= 3
+    ? `SUBJECT COUNT: ${count} figures in every scene. Spatial layout: ${spatialHint}. Every scene description MUST place all ${count} figures at named positions — not just "figures" generically. Third and fourth figures must be spatially integrated into the scene with specific positions, actions, and world interactions — NOT described as background extras or crowd members.`
+    : `SUBJECT COUNT: ${count} figures in every scene.`;
+
   return `Generate exactly 5 scene moments for this world. ${newInstruction}
 
 WORLD: ${profile.worldName}
@@ -480,6 +560,8 @@ PROPS: ${profile.props?.join(", ")}
 LIGHTING: ${profile.lightingSources?.join(", ")}
 TEXTURES: ${profile.textures?.join(", ")}
 
+${subjectNote}
+
 CRITICAL FRAMING RULE — every scene description and pose MUST obey this strictly:
 ${framingRule}
 
@@ -487,11 +569,38 @@ Return ONE concept for each mood slot. Rules:
 - Scene description must only describe what is visible within the framing rule above
 - Pose must only describe body parts visible within the framing rule above
 - Each scene must name at least 2 specific world props/surfaces that are visible within the frame
-- Figures must physically interact with the world — touching, leaning, pressed against, gripping
-- No generic language, no "standing together", no "walking in"
+- Every figure must physically interact with the world at their spatial position — touching, leaning, pressed against, gripping
+- No generic language, no "figures standing together", no "walking in", no "emerging from crowd"
 
 Respond ONLY with valid JSON:
-{"tender":{"title":"string","description":"2 sentences: action + named world props, framing-correct","pose":"specific body position using only visible body parts per framing rule","props":["prop1","prop2"]},"chaotic":{...},"editorial":{...},"candid":{...},"unexpected":{...}}`;
+{"tender":{"title":"string","description":"2-3 sentences: action + named world props + all figures spatially placed, framing-correct","pose":"specific body position for all figures using only visible body parts per framing rule","props":["prop1","prop2"]},"chaotic":{...},"editorial":{...},"candid":{...},"unexpected":{...}}`;
+}
+
+// Rewrite scene description for tight crops — strip full-body language
+function rewriteSceneForCrop(description, pose, cameraModeKey, subjects) {
+  if (cameraModeKey === "beautyClose") {
+    const count = subjects.length;
+    const faceDesc = count === 1
+      ? "Single figure face, neck, and shoulders filling the frame"
+      : count === 2
+        ? "Two faces side by side, necks and shoulders at frame edge"
+        : `${count} faces arrayed across the frame, necks and shoulders at edges`;
+    const worldMood = description.replace(/(standing|walking|sitting|kneeling|lying|pressed against|leaning on|perched|sprawled|arms? (up|raised|out|extended)|legs?|feet|ground|floor|platform|booth|surface|stepping|stride)[^,.;]*/gi, "").trim();
+    const cleanMood = worldMood.length > 20 ? ` — ${worldMood.slice(0, 120)}` : "";
+    return {
+      description: `${faceDesc}${cleanMood}. Extreme shallow depth of field, faces sharp, everything behind reduced to colored bokeh.`,
+      pose: `facial expression — ${pose.replace(/(arms?|hands?|legs?|feet|standing|sitting|kneeling|pressing|gripping|leaning)[^,.;]*/gi, "").trim() || "intense and composed"}, head angle deliberate, neck line visible`,
+    };
+  }
+  if (cameraModeKey === "waistUp") {
+    const cleanPose = pose.replace(/(legs?|feet|foot|ground|floor|stance|step|stride|kneeling|sitting|standing)[^,.;]*/gi, "").trim();
+    const cleanDesc = description.replace(/(legs?|feet|foot|ground|floor|stance|step|stride|kneeling|crouching)[^,.;]*/gi, "").trim();
+    return {
+      description: cleanDesc,
+      pose: cleanPose || pose,
+    };
+  }
+  return { description, pose };
 }
 
 function buildGeminiPrompt({ worldProfile, concept, styleKey, promptModeKey, cameraModeKey, subjects, mainIdx, subjectMode }) {
@@ -499,12 +608,15 @@ function buildGeminiPrompt({ worldProfile, concept, styleKey, promptModeKey, cam
   const mode = PROMPT_MODES[promptModeKey] || PROMPT_MODES.cover;
   const camera = CAMERA_MODES[cameraModeKey] || CAMERA_MODES.fullBody;
 
+  // rewrite scene for tight crop modes so scene language matches framing
+  const { description: sceneDesc, pose: scenePose } = rewriteSceneForCrop(concept.description, concept.pose || mode.pose, cameraModeKey, subjects);
+
   const figureBlocks = subjects.map((s, i) => {
     // scanned identity: stay literal — do NOT re-normalize, it blurs face specificity
     const normalized = s.scanned ? s.appearance : normalizeAppearance(s.appearance);
     const archetype = generateArchetype(s.name, normalized || s.appearance || "");
     const appearanceStr = normalized || `appearance determined by ${worldProfile.worldName} world and ${style.label} aesthetic`;
-    const wardrobe = buildWardrobeBlock(s, worldProfile.worldName, style.label);
+    const wardrobe = buildWardrobeBlock(s, worldProfile.worldName, style.label, cameraModeKey);
     // identity role indicators
     const hasRef = s.photo || s.detailPhoto;
     const refNote = hasRef ? `[attach reference image in Gemini for identity fidelity]` : `[no reference image — identity generated from description]`;
@@ -521,8 +633,8 @@ function buildGeminiPrompt({ worldProfile, concept, styleKey, promptModeKey, cam
     referenceBlock,
     camera.directive,
     `Strict framing enforcement: ${FRAMING_SCENE_RULES[cameraModeKey] || FRAMING_SCENE_RULES.fullBody} — do not render any body part or detail that falls outside this crop. Any body part outside the frame does not exist.`,
-    `Scene: ${concept.description}`,
-    `Pose language: ${concept.pose || mode.pose}`,
+    `Scene: ${sceneDesc}`,
+    `Pose language: ${scenePose}`,
     `Composition: ${mode.framing}`,
     buildSubjectCompositionDirective(subjectMode, subjects, mainIdx),
     `FIGURES — all must be fully rendered with exact outfits, no exceptions: ${figureBlocks}`,
@@ -622,7 +734,7 @@ function SubjectCard({ subject, index, onChange, onRemove, isMain, onSetMain }) 
         method: "POST",
         headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 800,
+          model: "claude-sonnet-4-6", max_tokens: 800,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
             { type: "text", text: "Analyze this reference image and write a precise identity anchor for image generation. Describe ONLY permanent physical traits — ignore all clothing, accessories, and styling entirely. Describe: face shape, forehead width/height, brow shape and spacing, eye shape and inter-eye distance, nose shape and bridge, lip shape and fullness, cheek structure, jawline, chin shape, hairline shape, hair color (specific shade), hair texture and length, skin tone in neutral photographic terms (luminosity and undertone), body build and bare silhouette, any visible tattoos with exact anatomical placement, piercings with location. Do not describe, reference, or imply any clothing, outfit, fabric, shoes, or non-piercing accessories — wardrobe will be assigned separately. Facial and body piercings are permanent physical traits and must be retained. Be literal, specific, and identity-preserving. Do not mention ethnicity, nationality, attractiveness, or real-person references. Output only one dense comma-separated description. Max 110 words." }
@@ -838,7 +950,7 @@ export default function App() {
   const timerRef = useRef(null);
 
   // ── world DNA + scenes generation ──
-  const generateWorldAndScenes = useCallback(async (desc, cameraKey = "fullBody") => {
+  const generateWorldAndScenes = useCallback(async (desc, cameraKey = "fullBody", subjectCount = 1) => {
     if (!desc.trim() || desc.trim().length < 5) {
       setWorldProfile(null); setSceneSlots(null); setSelectedSlot(null);
       setWorldLoading(false); setScenesLoading(false);
@@ -854,7 +966,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 900,
+          model: "claude-sonnet-4-6", max_tokens: 900,
           messages: [{ role: "user", content: `Build the physical world DNA for this event: "${desc.trim()}"
 
 Respond ONLY with valid JSON, no markdown, no backticks:
@@ -881,8 +993,8 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1200,
-          messages: [{ role: "user", content: buildSceneApiPrompt(profile, cameraModeKey) }]
+          model: "claude-sonnet-4-6", max_tokens: 1200,
+          messages: [{ role: "user", content: buildSceneApiPrompt(profile, cameraKey, false, subjectCount) }]
         })
       });
       if (res.ok) {
@@ -899,7 +1011,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => generateWorldAndScenes(eventDesc, cameraModeKey), 900);
+    timerRef.current = setTimeout(() => generateWorldAndScenes(eventDesc, cameraModeKey, subjects.length), 900);
     return () => clearTimeout(timerRef.current);
   }, [eventDesc, generateWorldAndScenes]);
 
@@ -909,10 +1021,20 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     if (prevCameraRef.current === cameraModeKey) return;
     prevCameraRef.current = cameraModeKey;
     if (!worldProfile || !eventDesc.trim()) return;
-    rerollScenesForCamera(cameraModeKey);
+    rerollScenesForCamera(cameraModeKey, subjects.length);
   }, [cameraModeKey]);
 
-  async function rerollScenesForCamera(cameraKey) {
+  // Regenerate scenes when subject count changes (scenes must integrate all figures)
+  const prevSubjectCountRef = useRef(subjects.length);
+  useEffect(() => {
+    const newCount = subjects.length;
+    if (prevSubjectCountRef.current === newCount) return;
+    prevSubjectCountRef.current = newCount;
+    if (!worldProfile || !eventDesc.trim()) return;
+    rerollScenesForCamera(cameraModeKey, newCount);
+  }, [subjects.length]);
+
+  async function rerollScenesForCamera(cameraKey, subjectCount) {
     if (!worldProfile || scenesLoading) return;
     setScenesLoading(true); setSceneSlots(null); setSelectedSlot(null);
     let slots = null;
@@ -921,8 +1043,8 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1200,
-          messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false) }]
+          model: "claude-sonnet-4-6", max_tokens: 1200,
+          messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false, subjectCount || 1) }]
         })
       });
       if (res.ok) {
@@ -946,8 +1068,8 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1200,
-          messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraModeKey, true) }]
+          model: "claude-sonnet-4-6", max_tokens: 1200,
+          messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraModeKey, true, subjects.length) }]
         })
       });
       if (res.ok) {

@@ -732,7 +732,7 @@ function SubjectCard({ subject, index, onChange, onRemove, isMain, onSetMain }) 
       const mediaType = subject.photo.split(";")[0].split(":")[1];
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
           model: "claude-sonnet-4-6", max_tokens: 800,
           messages: [{ role: "user", content: [
@@ -964,7 +964,7 @@ export default function App() {
     try {
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
           model: "claude-sonnet-4-6", max_tokens: 900,
           messages: [{ role: "user", content: `Build the physical world DNA for this event: "${desc.trim()}"
@@ -991,7 +991,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     try {
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
           model: "claude-sonnet-4-6", max_tokens: 1200,
           messages: [{ role: "user", content: buildSceneApiPrompt(profile, cameraKey, false, subjectCount) }]
@@ -1041,7 +1041,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     try {
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
           model: "claude-sonnet-4-6", max_tokens: 1200,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false, subjectCount || 1) }]
@@ -1066,7 +1066,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     try {
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
           model: "claude-sonnet-4-6", max_tokens: 1200,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraModeKey, true, subjects.length) }]

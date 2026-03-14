@@ -1,18 +1,33 @@
-export default async (request) => {
+export default async (request, context) => {
   if (request.method === "OPTIONS") {
     return new Response(null, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, anthropic-version, anthropic-dangerous-direct-browser-access",
+        "Access-Control-Allow-Headers": "Content-Type",
       }
     });
   }
 
   try {
-    const bodyText = await request.text();
+    const chunks = [];
+    const reader = request.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const bodyText = new TextDecoder().decode(
+      chunks.reduce((acc, chunk) => {
+        const merged = new Uint8Array(acc.length + chunk.length);
+        merged.set(acc, 0);
+        merged.set(chunk, acc.length);
+        return merged;
+      }, new Uint8Array(0))
+    );
+
     if (!bodyText || bodyText.trim() === "") {
-      return new Response(JSON.stringify({ error: "Empty request body" }), {
+      return new Response(JSON.stringify({ error: "Empty request body received" }), {
         status: 400,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
@@ -24,7 +39,7 @@ export default async (request) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "x-api-key": Netlify.env.get("ANTHROPIC_API_KEY"),
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(body),
@@ -39,12 +54,9 @@ export default async (request) => {
       }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
       status: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      }
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
     });
   }
 };

@@ -44,16 +44,26 @@ function extractJSON(text) {
 }
 
 function isValidWorldProfile(obj) {
-  return obj && typeof obj.worldName === "string" &&
-    Array.isArray(obj.surfaces) && Array.isArray(obj.structures) &&
-    Array.isArray(obj.props) && Array.isArray(obj.lightingSources) &&
-    Array.isArray(obj.textures) && Array.isArray(obj.palette);
+  if (!obj) return false;
+  // ensure arrays exist, fill with empty if missing
+  obj.surfaces = Array.isArray(obj.surfaces) ? obj.surfaces : [];
+  obj.structures = Array.isArray(obj.structures) ? obj.structures : [];
+  obj.props = Array.isArray(obj.props) ? obj.props : [];
+  obj.lightingSources = Array.isArray(obj.lightingSources) ? obj.lightingSources : [];
+  obj.textures = Array.isArray(obj.textures) ? obj.textures : [];
+  obj.palette = Array.isArray(obj.palette) ? obj.palette : [];
+  obj.atmosphere = obj.atmosphere || "";
+  // valid if we have at least a name and some content
+  return typeof obj.worldName === "string" && (
+    obj.surfaces.length > 0 || obj.props.length > 0 || obj.structures.length > 0
+  );
 }
 
 function isValidSceneSlots(obj) {
-  return obj && ["tender","chaotic","editorial","candid","unexpected"].every(
-    k => obj[k] && typeof obj[k].title === "string" && typeof obj[k].description === "string"
-  );
+  if (!obj) return false;
+  const slots = ["tender","chaotic","editorial","candid","unexpected"];
+  const valid = slots.filter(k => obj[k] && typeof obj[k].title === "string" && typeof obj[k].description === "string");
+  return valid.length >= 3; // accept partial response — at least 3 of 5 slots
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

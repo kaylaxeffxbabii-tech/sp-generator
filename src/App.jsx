@@ -13,14 +13,14 @@ const API_URL = isClaudeAI
 // LIB — KEYWORD ROUTER (score-based, not first-match)
 // ═══════════════════════════════════════════════════════════════════════════════
 const KEYWORD_MAP = {
-  pool:     ["pool","swim","splash","float","aqua","waterpark","inflatable"],
-  festival: ["festival","coachella","concert","music","camping","tent","outdoor","rave","edm"],
-  night:    ["night","midnight","neon","underground","after hours","late","club","bar"],
-  nature:   ["forest","woods","mountain","waterfall","cliff","desert","jungle","nature","creek","meadow"],
-  trailer:  ["trailer","mobile home","barbie","camper","rv","country","park","suburb","backyard"],
-  gothic:   ["gothic","cathedral","cemetery","graveyard","vampire","witch","occult","haunted","dark"],
-  beach:    ["beach","ocean","surf","shore","sand","island","tropical","coastal","jetty"],
-  party:    ["party","gala","cocktail","dance","celebration","birthday","soiree","rooftop","penthouse"],
+  pool:     ["pool","swim","splash","float","aqua","waterpark","inflatable","hot tub","jacuzzi"],
+  festival: ["festival","coachella","concert","music festival","camping","tent","outdoor rave","edm","music stage","mosh pit"],
+  night:    ["nightclub","midnight club","neon bar","underground club","after hours","late night club","strip club","dive bar","speakeasy"],
+  nature:   ["forest","woods","mountain","waterfall","cliff","desert","jungle","nature trail","creek","meadow","hiking"],
+  trailer:  ["trailer park","mobile home","camper","rv park","country fair","backyard party","suburb"],
+  gothic:   ["gothic","cathedral","cemetery","graveyard","vampire","witch","occult","haunted","crypt","dark ritual"],
+  beach:    ["beach","ocean","surf","shore","sand","island","tropical","coastal","jetty","seaside"],
+  party:    ["gala","cocktail party","dance party","birthday party","soiree","rooftop party","penthouse","wedding reception"],
 };
 
 function scoreKeywords(desc) {
@@ -138,7 +138,7 @@ function getFallbackWorldProfile(eventDesc) {
   const scores = scoreKeywords(eventDesc);
   // only use keyword library if something actually matched
   const topScore = scores[0]?.[1] || 0;
-  if (topScore > 0) {
+  if (topScore >= 2) {
     const best = scores[0][0];
     const profile = { ...WORLD_PROFILES[best] };
     profile.worldName = eventDesc;
@@ -221,20 +221,47 @@ const SCENE_SLOTS = {
   },
 };
 
-function getFallbackScenes(eventDesc) {
+function getFallbackScenes(eventDesc, subjectCount) {
   const scores = scoreKeywords(eventDesc);
   const topScore = scores[0]?.[1] || 0;
-  if (topScore > 0) {
-    return SCENE_SLOTS[scores[0][0]];
+  if (topScore >= 2) {
+    return scaleScenesForCount(SCENE_SLOTS[scores[0][0]], eventDesc, subjectCount || 2);
   }
-  // no keyword match — return generic scenes that work for any unusual event
-  const e = eventDesc;
+  // no keyword match — return generic scenes scaled to subject count
+  return buildGenericScenes(eventDesc, subjectCount || 2);
+}
+
+function scaleScenesForCount(slots, eventDesc, count) {
+  if (count <= 2) return slots;
+  // rewrite all slot descriptions to mention all figures
+  const result = {};
+  for (const [key, slot] of Object.entries(slots)) {
+    result[key] = {
+      ...slot,
+      description: slot.description
+        .replace(/Both figures/g, `All ${count} figures`)
+        .replace(/Two figures/g, `${count} figures`)
+        .replace(/one figure pulling the other/g, `figures pulling each other`)
+        .replace(/both mid-laugh/g, `all mid-laugh`)
+        .replace(/one figure/g, `one figure`)
+        + (count >= 3 ? ` A third figure is physically integrated into the scene at a distinct spatial position — not background, fully present.` : ""),
+      pose: slot.pose + (count >= 3 ? `, third figure mirrors or contrasts the group energy at their own position` : ""),
+    };
+  }
+  return result;
+}
+
+function buildGenericScenes(e, count) {
+  const fig = count === 1 ? "One figure" : count === 2 ? "Two figures" : `${count} figures`;
+  const all = count === 1 ? "The figure" : count === 2 ? "Both figures" : `All ${count} figures`;
+  const third = count >= 3 ? ` A third figure occupies the far edge of the frame, physically connected to a scene prop, facing inward toward the group.` : "";
+  const spatial = count >= 3 ? ` Each figure holds a distinct spatial zone — left foreground, center midground, right foreground.` : "";
   return {
-    tender:     { title: "Quiet Corner", description: `Two figures tucked into a quieter edge of the ${e} space, backs to the main event, faces close in private conversation. The energy of the event hums behind them.`, pose: "leaning toward each other, heads close, backs to crowd", props: ["event space edge","ambient event lighting"] },
-    chaotic:    { title: "Peak Moment", description: `Both figures caught at the height of the ${e} experience — arms up, faces turned toward the main focal point, fully absorbed in the chaos. Mid-reaction, unguarded.`, pose: "arms raised, faces turned toward event focal point, mid-reaction", props: ["event focal point","crowd energy","main lighting"] },
-    editorial:  { title: "Threshold Pose", description: `Both figures framed in the main entrance or threshold of the ${e} space. Composed, deliberate, aware of the camera. The event world visible behind them.`, pose: "standing composed at threshold, facing camera, event behind", props: ["event entrance","event signage or decor","ambient lighting"] },
-    candid:     { title: "Caught Between", description: `Caught mid-navigation through the ${e} space — one figure pulling the other through a gap in the crowd, both mid-laugh, hands connected. Neither looking at camera.`, pose: "one pulling other by hand through crowd, mid-laugh, in motion", props: ["crowd gap","event floor","practical lighting"] },
-    unexpected: { title: "Above It All", description: `Both figures elevated above the main ${e} action — on a platform, step, or raised surface — looking down at everything below with ownership. The whole event visible beneath them.`, pose: "standing on elevated surface, looking down at event below, relaxed", props: ["elevated platform or step","event floor below","overhead lighting"] },
+    tender:     { title: "Quiet Corner", description: `${fig} tucked into a quieter edge of the ${e} space, backs to the main event, faces close in private conversation. The energy of the event hums behind them.${third}`, pose: `leaning toward each other, heads close, backs to crowd${count >= 3 ? ", third figure pressed against a scene surface at the edge" : ""}`, props: ["event space edge","ambient event lighting"] },
+    chaotic:    { title: "Peak Moment", description: `${all} caught at the height of the ${e} experience — arms up, faces turned toward the main focal point, fully absorbed in the chaos. Mid-reaction, unguarded.${spatial}`, pose: `arms raised, faces turned toward event focal point, mid-reaction${count >= 3 ? ", all three figures mid-action at their own spatial positions" : ""}`, props: ["event focal point","crowd energy","main lighting"] },
+    editorial:  { title: "Threshold Pose", description: `${all} framed in the main entrance or threshold of the ${e} space. Composed, deliberate, aware of the camera.${spatial} The event world visible behind them.`, pose: `standing composed at threshold, facing camera${count >= 3 ? ", three figures in a triangular or linear arrangement" : ""}`, props: ["event entrance","event signage or decor","ambient lighting"] },
+    candid:     { title: "Caught Between", description: `Caught mid-navigation through the ${e} space — figures pulling each other through a gap in the crowd, all mid-laugh, hands connected in a chain. Nobody looking at camera.${third}`, pose: `figures in a chain, pulling each other through the crowd, mid-laugh, in motion${count >= 3 ? ", third figure at the end of the chain, half-turning back" : ""}`, props: ["crowd gap","event floor","practical lighting"] },
+    unexpected: { title: "Above It All", description: `${all} elevated above the main ${e} action — on a platform, step, or raised surface — looking down at everything below with ownership.${spatial} The whole event visible beneath them.`, pose: `standing on elevated surface, looking down at event below${count >= 3 ? ", figures spread across the platform at left, center, right positions" : ""}`, props: ["elevated platform or step","event floor below","overhead lighting"] },
   };
 }
 
@@ -734,7 +761,7 @@ function SubjectCard({ subject, index, onChange, onRemove, isMain, onSetMain }) 
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-6", max_tokens: 800,
+          model: "claude-sonnet-4-5", max_tokens: 800,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
             { type: "text", text: "Analyze this reference image and write a precise identity anchor for image generation. Describe ONLY permanent physical traits — ignore all clothing, accessories, and styling entirely. Describe: face shape, forehead width/height, brow shape and spacing, eye shape and inter-eye distance, nose shape and bridge, lip shape and fullness, cheek structure, jawline, chin shape, hairline shape, hair color (specific shade), hair texture and length, skin tone in neutral photographic terms (luminosity and undertone), body build and bare silhouette, any visible tattoos with exact anatomical placement, piercings with location. Do not describe, reference, or imply any clothing, outfit, fabric, shoes, or non-piercing accessories — wardrobe will be assigned separately. Facial and body piercings are permanent physical traits and must be retained. Be literal, specific, and identity-preserving. Do not mention ethnicity, nationality, attractiveness, or real-person references. Output only one dense comma-separated description. Max 110 words." }
@@ -961,12 +988,13 @@ export default function App() {
 
     // Step 1: generate world DNA
     let profile = null;
+    let apiError = null;
     try {
       const res = await fetch(API_URL, {
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-6", max_tokens: 900,
+          model: "claude-sonnet-4-5", max_tokens: 900,
           messages: [{ role: "user", content: `Build the physical world DNA for this event: "${desc.trim()}"
 
 Respond ONLY with valid JSON, no markdown, no backticks:
@@ -980,8 +1008,13 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         const raw = data.content?.map(b => b.text || "").join("").trim();
         const parsed = extractJSON(raw);
         if (isValidWorldProfile(parsed)) { profile = parsed; profile.worldName = desc.trim(); }
+        else { apiError = "API responded but JSON was invalid: " + raw?.slice(0, 120); }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        apiError = `API error ${res.status}: ${errData?.error?.message || JSON.stringify(errData).slice(0, 120)}`;
       }
-    } catch {}
+    } catch(e) { apiError = "Fetch failed: " + e.message; }
+    if (apiError) console.error("[SP World DNA]", apiError);
     if (!profile) profile = getFallbackWorldProfile(desc);
     setWorldProfile(profile);
     setWorldLoading(false);
@@ -993,7 +1026,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-6", max_tokens: 1200,
+          model: "claude-sonnet-4-5", max_tokens: 1200,
           messages: [{ role: "user", content: buildSceneApiPrompt(profile, cameraKey, false, subjectCount) }]
         })
       });
@@ -1004,7 +1037,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         if (isValidSceneSlots(parsed)) slots = parsed;
       }
     } catch {}
-    if (!slots) slots = getFallbackScenes(desc);
+    if (!slots) slots = getFallbackScenes(desc, subjectCount);
     setSceneSlots(slots);
     setScenesLoading(false);
   }, []);
@@ -1013,7 +1046,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => generateWorldAndScenes(eventDesc, cameraModeKey, subjects.length), 900);
     return () => clearTimeout(timerRef.current);
-  }, [eventDesc, generateWorldAndScenes]);
+  }, [eventDesc, generateWorldAndScenes, subjects.length]);
 
   // Regenerate scenes when camera framing changes (scenes must match framing)
   const prevCameraRef = useRef(cameraModeKey);
@@ -1043,7 +1076,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-6", max_tokens: 1200,
+          model: "claude-sonnet-4-5", max_tokens: 1200,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false, subjectCount || 1) }]
         })
       });
@@ -1054,7 +1087,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         if (isValidSceneSlots(parsed)) slots = parsed;
       }
     } catch {}
-    if (!slots) slots = getFallbackScenes(worldProfile.worldName);
+    if (!slots) slots = getFallbackScenes(worldProfile.worldName, subjectCount || 1);
     setSceneSlots(slots);
     setScenesLoading(false);
   }
@@ -1068,7 +1101,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-6", max_tokens: 1200,
+          model: "claude-sonnet-4-5", max_tokens: 1200,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraModeKey, true, subjects.length) }]
         })
       });
@@ -1079,7 +1112,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         if (isValidSceneSlots(parsed)) slots = parsed;
       }
     } catch {}
-    if (!slots) slots = getFallbackScenes(worldProfile.worldName);
+    if (!slots) slots = getFallbackScenes(worldProfile.worldName, subjectCount || 1);
     setSceneSlots(slots);
     setScenesLoading(false);
   }

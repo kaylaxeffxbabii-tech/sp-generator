@@ -1056,7 +1056,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => generateWorldAndScenes(eventDesc, cameraModeKey, subjects.length), 900);
     return () => clearTimeout(timerRef.current);
-  }, [eventDesc, generateWorldAndScenes, subjects.length]);
+  }, [eventDesc, generateWorldAndScenes]);
 
   // Regenerate scenes when camera framing changes (scenes must match framing)
   const prevCameraRef = useRef(cameraModeKey);
@@ -1067,19 +1067,26 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     rerollScenesForCamera(cameraModeKey, subjects.length);
   }, [cameraModeKey]);
 
-  // Regenerate scenes when subject count changes (scenes must integrate all figures)
+  // Regenerate scenes when subject count changes — but ONLY on add/remove, not on field edits
   const prevSubjectCountRef = useRef(subjects.length);
+  const subjectRerollTimer = useRef(null);
   useEffect(() => {
     const newCount = subjects.length;
-    if (prevSubjectCountRef.current === newCount) return;
+    if (prevSubjectCountRef.current === newCount) return; // count unchanged, just a field edit
     prevSubjectCountRef.current = newCount;
-    if (!worldProfile || !eventDesc.trim()) return;
-    rerollScenesForCamera(cameraModeKey, newCount);
+    if (!worldProfile || !eventDesc.trim() || scenesLoading) return;
+    // debounce to avoid firing mid-render
+    if (subjectRerollTimer.current) clearTimeout(subjectRerollTimer.current);
+    subjectRerollTimer.current = setTimeout(() => {
+      rerollScenesForCamera(cameraModeKey, newCount);
+    }, 1200);
+    return () => clearTimeout(subjectRerollTimer.current);
   }, [subjects.length]);
 
   async function rerollScenesForCamera(cameraKey, subjectCount) {
     if (!worldProfile || scenesLoading) return;
-    setScenesLoading(true); setSceneSlots(null); setSelectedSlot(null);
+    setScenesLoading(true);
+    // do NOT null out sceneSlots — keep existing scenes visible while loading
     let slots = null;
     try {
       const res = await fetch(API_URL, {
@@ -1099,6 +1106,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     } catch {}
     if (!slots) slots = getFallbackScenes(worldProfile.worldName, subjectCount || 1);
     setSceneSlots(slots);
+    setSelectedSlot(null);
     setScenesLoading(false);
   }
 

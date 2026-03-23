@@ -1,4 +1,4 @@
-const handler = async (event) => {
+exports.handler = async function(event, context) {
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
@@ -11,35 +11,32 @@ const handler = async (event) => {
     };
   }
 
-  try {
-    if (!event.body || event.body.trim() === "") {
-      return {
-        statusCode: 400,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "No body received" }),
-      };
-    }
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, body: "Method Not Allowed" };
+  }
 
-    const bodyText = event.isBase64Encoded
+  try {
+    const body = event.isBase64Encoded
       ? Buffer.from(event.body, "base64").toString("utf8")
       : event.body;
 
-    const body = JSON.parse(bodyText);
-
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify(body),
+      body: body,
     });
 
-    const data = await res.json();
+    const data = await response.json();
     return {
-      statusCode: res.status,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      statusCode: response.status,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
       body: JSON.stringify(data),
     };
   } catch (err) {
@@ -50,5 +47,3 @@ const handler = async (event) => {
     };
   }
 };
-
-exports.handler = handler;

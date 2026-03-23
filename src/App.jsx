@@ -573,44 +573,26 @@ const FRAMING_SCENE_RULES = {
 
 function buildSceneApiPrompt(profile, cameraModeKey, isReroll, subjectCount) {
   const framingRule = FRAMING_SCENE_RULES[cameraModeKey] || FRAMING_SCENE_RULES.fullBody;
-  const newInstruction = isReroll ? "These must be entirely different from any previous scenes — different locations, different props, different emotional beats." : "";
   const count = subjectCount || 2;
+  const rerollNote = isReroll ? " Use completely different locations and props from any previous scenes." : "";
+  const spatialNote = count >= 3
+    ? `${count} figures — placed at: left foreground, center midground, right foreground. All figures physically interact with world props at their position.`
+    : `${count} figures — both physically interacting with world props.`;
 
-  // spatial layout hint — tells Claude how to write scenes for 3+ figures
-  const spatialMaps = {
-    1: "single figure",
-    2: "two figures — left figure and right figure",
-    3: "three figures — left foreground figure, center midground figure, right foreground figure",
-    4: "four figures — far left, center-left, center-right, far right",
-  };
-  const spatialHint = spatialMaps[Math.min(count, 4)] || spatialMaps[4];
-  const subjectNote = count >= 3
-    ? `SUBJECT COUNT: ${count} figures in every scene. Spatial layout: ${spatialHint}. Every scene description MUST place all ${count} figures at named positions — not just "figures" generically. Third and fourth figures must be spatially integrated into the scene with specific positions, actions, and world interactions — NOT described as background extras or crowd members.`
-    : `SUBJECT COUNT: ${count} figures in every scene.`;
+  return `Generate 5 scene moments for: ${profile.worldName}${rerollNote}
 
-  return `Generate exactly 5 scene moments for this world. ${newInstruction}
+WORLD PROPS: ${profile.props?.slice(0,5).join(", ")}
+SURFACES: ${profile.surfaces?.slice(0,3).join(", ")}
+STRUCTURES: ${profile.structures?.slice(0,3).join(", ")}
+LIGHTING: ${profile.lightingSources?.slice(0,2).join(", ")}
 
-WORLD: ${profile.worldName}
-SURFACES: ${profile.surfaces?.join(", ")}
-STRUCTURES: ${profile.structures?.join(", ")}
-PROPS: ${profile.props?.join(", ")}
-LIGHTING: ${profile.lightingSources?.join(", ")}
-TEXTURES: ${profile.textures?.join(", ")}
+FIGURES: ${spatialNote}
+FRAMING: ${framingRule}
 
-${subjectNote}
+Each scene must: name specific world props, place figures at exact positions, describe physical contact with environment.
 
-CRITICAL FRAMING RULE — every scene description and pose MUST obey this strictly:
-${framingRule}
-
-Return ONE concept for each mood slot. Rules:
-- Scene description must only describe what is visible within the framing rule above
-- Pose must only describe body parts visible within the framing rule above
-- Each scene must name at least 2 specific world props/surfaces that are visible within the frame
-- Every figure must physically interact with the world at their spatial position — touching, leaning, pressed against, gripping
-- No generic language, no "figures standing together", no "walking in", no "emerging from crowd"
-
-Respond ONLY with valid JSON:
-{"tender":{"title":"string","description":"2-3 sentences: action + named world props + all figures spatially placed, framing-correct","pose":"specific body position for all figures using only visible body parts per framing rule","props":["prop1","prop2"]},"chaotic":{...},"editorial":{...},"candid":{...},"unexpected":{...}}`;
+Respond ONLY with this exact JSON (no markdown):
+{"tender":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"chaotic":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"editorial":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"candid":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"unexpected":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]}}`;
 }
 
 // Rewrite scene description for tight crops — strip full-body language
@@ -1036,7 +1018,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-5", max_tokens: 1200,
+          model: "claude-sonnet-4-5", max_tokens: 2000,
           messages: [{ role: "user", content: buildSceneApiPrompt(profile, cameraKey, false, subjectCount) }]
         })
       });
@@ -1084,7 +1066,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
   }, [subjects.length]);
 
   async function rerollScenesForCamera(cameraKey, subjectCount) {
-    if (!worldProfile || scenesLoading) return;
+    if (!worldProfile) return;
     setScenesLoading(true);
     // do NOT null out sceneSlots — keep existing scenes visible while loading
     let slots = null;
@@ -1093,7 +1075,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-5", max_tokens: 1200,
+          model: "claude-sonnet-4-5", max_tokens: 2000,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false, subjectCount || 1) }]
         })
       });
@@ -1111,15 +1093,15 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
   }
 
   async function rerollScenes() {
-    if (!worldProfile || scenesLoading) return;
-    setScenesLoading(true); setSceneSlots(null); setSelectedSlot(null);
+    if (!worldProfile) return;
+    setScenesLoading(true);
     let slots = null;
     try {
       const res = await fetch(API_URL, {
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-sonnet-4-5", max_tokens: 1200,
+          model: "claude-sonnet-4-5", max_tokens: 2000,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraModeKey, true, subjects.length) }]
         })
       });

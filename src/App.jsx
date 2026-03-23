@@ -752,7 +752,7 @@ function SubjectCard({ subject, index, onChange, onRemove, isMain, onSetMain }) 
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022", max_tokens: 800,
+          model: "claude-haiku-4-5-20251001", max_tokens: 800,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
             { type: "text", text: "Analyze this reference image and write a precise identity anchor for image generation. Describe ONLY permanent physical traits — ignore all clothing, accessories, and styling entirely. Describe: face shape, forehead width/height, brow shape and spacing, eye shape and inter-eye distance, nose shape and bridge, lip shape and fullness, cheek structure, jawline, chin shape, hairline shape, hair color (specific shade), hair texture and length, skin tone in neutral photographic terms (luminosity and undertone), body build and bare silhouette, any visible tattoos with exact anatomical placement, piercings with location. Do not describe, reference, or imply any clothing, outfit, fabric, shoes, or non-piercing accessories — wardrobe will be assigned separately. Facial and body piercings are permanent physical traits and must be retained. Be literal, specific, and identity-preserving. Do not mention ethnicity, nationality, attractiveness, or real-person references. Output only one dense comma-separated description. Max 110 words." }
@@ -985,7 +985,7 @@ export default function App() {
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022", max_tokens: 900,
+          model: "claude-haiku-4-5-20251001", max_tokens: 900,
           messages: [{ role: "user", content: `Build the physical world DNA for this event: "${desc.trim()}"
 
 Respond ONLY with valid JSON, no markdown, no backticks:
@@ -1017,7 +1017,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022", max_tokens: 2000,
+          model: "claude-haiku-4-5-20251001", max_tokens: 2000,
           messages: [{ role: "user", content: buildSceneApiPrompt(profile, cameraKey, false, subjectCount) }]
         })
       });
@@ -1062,7 +1062,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022", max_tokens: 2000,
+          model: "claude-haiku-4-5-20251001", max_tokens: 2000,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false, subjectCount || subjects.length) }]
         })
       });
@@ -1090,7 +1090,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         method: "POST",
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022", max_tokens: 2000,
+          model: "claude-haiku-4-5-20251001", max_tokens: 2000,
           messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraModeKey, true, subjects.length) }]
         })
       });

@@ -1048,21 +1048,8 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
     rerollScenesForCamera(cameraModeKey, subjects.length);
   }, [cameraModeKey]);
 
-  // Regenerate scenes when subject count changes — but ONLY on add/remove, not on field edits
-  const prevSubjectCountRef = useRef(subjects.length);
-  const subjectRerollTimer = useRef(null);
-  useEffect(() => {
-    const newCount = subjects.length;
-    if (prevSubjectCountRef.current === newCount) return; // count unchanged, just a field edit
-    prevSubjectCountRef.current = newCount;
-    if (!worldProfile || !eventDesc.trim() || scenesLoading) return;
-    // debounce to avoid firing mid-render
-    if (subjectRerollTimer.current) clearTimeout(subjectRerollTimer.current);
-    subjectRerollTimer.current = setTimeout(() => {
-      rerollScenesForCamera(cameraModeKey, newCount);
-    }, 1200);
-    return () => clearTimeout(subjectRerollTimer.current);
-  }, [subjects.length]);
+  // Subject count change — no auto-regen, user hits REROLL to update scenes for new count
+  // (auto-regen was causing infinite spinner due to race conditions)
 
   async function rerollScenesForCamera(cameraKey, subjectCount) {
     if (!worldProfile) return;
@@ -1094,6 +1081,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
   async function rerollScenes() {
     if (!worldProfile) return;
     setScenesLoading(true);
+    // pass current subject count so scenes are written for right number of figures
     let slots = null;
     try {
       const res = await fetch(API_URL, {

@@ -1027,10 +1027,12 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         const parsed = extractJSON(raw);
         if (isValidSceneSlots(parsed)) slots = parsed;
       }
-    } catch {}
-    if (!slots) slots = getFallbackScenes(desc, subjectCount);
-    setSceneSlots(slots);
-    setScenesLoading(false);
+    } catch(e) { console.error("[SP Scenes Gen]", e.message); }
+    finally {
+      if (!slots) slots = getFallbackScenes(desc, subjectCount);
+      setSceneSlots(slots);
+      setScenesLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -1054,7 +1056,6 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
   async function rerollScenesForCamera(cameraKey, subjectCount) {
     if (!worldProfile) return;
     setScenesLoading(true);
-    // do NOT null out sceneSlots — keep existing scenes visible while loading
     let slots = null;
     try {
       const res = await fetch(API_URL, {
@@ -1062,7 +1063,7 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         headers: (isClaudeAI ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : { "Content-Type": "application/json" }),
         body: JSON.stringify({
           model: "claude-sonnet-4-5", max_tokens: 2000,
-          messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false, subjectCount || 1) }]
+          messages: [{ role: "user", content: buildSceneApiPrompt(worldProfile, cameraKey, false, subjectCount || subjects.length) }]
         })
       });
       if (res.ok) {
@@ -1071,17 +1072,18 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         const parsed = extractJSON(raw);
         if (isValidSceneSlots(parsed)) slots = parsed;
       }
-    } catch {}
-    if (!slots) slots = getFallbackScenes(worldProfile.worldName, subjectCount || 1);
-    setSceneSlots(slots);
-    setSelectedSlot(null);
-    setScenesLoading(false);
+    } catch(e) { console.error("[SP Scenes]", e.message); }
+    finally {
+      if (!slots) slots = getFallbackScenes(worldProfile?.worldName || "", subjectCount || subjects.length);
+      setSceneSlots(slots);
+      setSelectedSlot(null);
+      setScenesLoading(false);
+    }
   }
 
   async function rerollScenes() {
     if (!worldProfile) return;
     setScenesLoading(true);
-    // pass current subject count so scenes are written for right number of figures
     let slots = null;
     try {
       const res = await fetch(API_URL, {
@@ -1098,10 +1100,12 @@ Rules: be hyper-specific to THIS exact event. Every item must be a physical obje
         const parsed = extractJSON(raw);
         if (isValidSceneSlots(parsed)) slots = parsed;
       }
-    } catch {}
-    if (!slots) slots = getFallbackScenes(worldProfile.worldName, subjectCount || 1);
-    setSceneSlots(slots);
-    setScenesLoading(false);
+    } catch(e) { console.error("[SP Reroll]", e.message); }
+    finally {
+      if (!slots) slots = getFallbackScenes(worldProfile?.worldName || "", subjects.length);
+      setSceneSlots(slots);
+      setScenesLoading(false);
+    }
   }
 
   function updateSubject(i, val) { setSubjects(s => s.map((x, idx) => idx === i ? val : x)); }

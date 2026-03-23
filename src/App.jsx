@@ -529,33 +529,22 @@ function buildSubjectCompositionDirective(subjectMode, subjects, mainIdx) {
   const mainName = subjects[mainIdx]?.name || "Figure 1";
   const count = subjects.length;
 
-  // spatial position maps — ensures every figure gets an explicit named position
-  const spatialMaps = {
-    1: ["center frame"],
-    2: ["frame left", "frame right"],
-    3: ["frame left foreground", "center midground", "frame right foreground"],
-    4: ["far left", "center-left", "center-right", "far right"],
-  };
-  const positions = spatialMaps[Math.min(count, 4)] || spatialMaps[4];
-
-  const figurePositions = subjects.map((s, i) => {
-    const name = s.name?.trim() || `Figure ${i + 1}`;
-    return `${name} at ${positions[i] || `position ${i + 1}`}`;
-  }).join("; ");
+  const figureNames = subjects.map((s, i) => s.name?.trim() || `Figure ${i + 1}`);
 
   if (subjectMode === "main") {
-    const others = subjects.filter((_, i) => i !== mainIdx).map((s, i) => {
-      const name = s.name?.trim() || `Figure ${mainIdx === 0 ? i + 2 : i + 1}`;
-      return `${name} at ${positions[mainIdx === 0 ? i + 1 : i] || "supporting position"}`;
-    }).join("; ");
-    return `Spatial layout: ${mainName} is the visual anchor at ${positions[mainIdx] || "center"}${others ? ` — supporting figures: ${others}` : ""}. Key light locked on ${mainName}, secondary figures integrated into scene spatially, not floating.`;
+    const others = figureNames.filter((_, i) => i !== mainIdx).join(" and ");
+    return `Composition: ${mainName} is the visual anchor at center — key light focused on them, body facing camera. ${others ? `${others} positioned close beside ${mainName}, bodies overlapping or leaning in, physically connected to the main figure. No figure is isolated — the group reads as one unit.` : ""} All figures clustered within arm's reach of each other.`;
   }
 
   if (subjectMode === "equal") {
-    return `Spatial layout: all ${count} figures share equal visual weight — ${figurePositions}. Each figure fully occupies their designated spatial zone, no overlapping or crowding. Lighting equal across all positions.`;
+    if (count === 1) return `Composition: single figure centered, fully embedded in the environment at multiple depth levels.`;
+    if (count === 2) return `Composition: two figures close together — bodies nearly touching, one slightly in front of the other creating depth. Both facing generally toward camera but angled toward each other. The environment wraps around both as a single unit, not as two separate figures.`;
+    return `Composition: all ${count} figures clustered tightly — ${figureNames.join(", ")} in a close group with bodies overlapping and at different heights (one seated or crouching, one mid-level, one standing). The group reads as a single organic unit embedded in the environment. No figure is isolated in their own spatial zone. Environment wraps around the whole cluster.`;
   }
 
-  return `Spatial layout: all ${count} figures in dynamic interaction — ${figurePositions}. Each figure physically connected to the scene at their position — touching props, leaning on surfaces, occupying space. Organic overlap permitted at edges, peak action moment.`;
+  // candid/action mode
+  if (count === 1) return `Composition: single figure caught mid-action, fully interacting with environment.`;
+  return `Composition: all ${count} figures caught in a shared moment — ${figureNames.join(", ")} physically connected through touch, shared gaze, or reaching toward the same prop. Bodies at different heights creating a dynamic triangular group shape. The environment presses in from all sides around the group.`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -574,25 +563,35 @@ const FRAMING_SCENE_RULES = {
 function buildSceneApiPrompt(profile, cameraModeKey, isReroll, subjectCount) {
   const framingRule = FRAMING_SCENE_RULES[cameraModeKey] || FRAMING_SCENE_RULES.fullBody;
   const count = subjectCount || 2;
-  const rerollNote = isReroll ? " Use completely different locations and props from any previous scenes." : "";
-  const spatialNote = count >= 3
-    ? `${count} figures — placed at: left foreground, center midground, right foreground. All figures physically interact with world props at their position.`
-    : `${count} figures — both physically interacting with world props.`;
+  const rerollNote = isReroll ? " Every scene must use a completely different named interior location and different props." : "";
 
-  return `Generate 5 scene moments for: ${profile.worldName}${rerollNote}
+  const spatialNote = count === 1
+    ? "1 figure — physically occupying and interacting with the named location."
+    : count === 2
+    ? "2 figures — close together, bodies nearly touching or overlapping, at slightly different heights. Both physically interacting with named world props."
+    : `${count} figures — clustered together as a tight group at different heights (one seated/crouching at foreground, one mid-level, one standing behind). Bodies overlap and connect — this is NOT a spread-out lineup. Each figure physically holds or touches a named prop. The group reads as one organic unit within the environment.`;
 
-WORLD PROPS: ${profile.props?.slice(0,5).join(", ")}
-SURFACES: ${profile.surfaces?.slice(0,3).join(", ")}
-STRUCTURES: ${profile.structures?.slice(0,3).join(", ")}
-LIGHTING: ${profile.lightingSources?.slice(0,2).join(", ")}
+  return `Generate 5 scene moments for this event: "${profile.worldName}"${rerollNote}
+
+This event's physical world:
+PROPS (things figures can hold/touch): ${profile.props?.join(", ")}
+SURFACES (things to lean/sit on): ${profile.surfaces?.join(", ")}
+STRUCTURES (architectural elements): ${profile.structures?.join(", ")}
+LIGHTING: ${profile.lightingSources?.join(", ")}
+ATMOSPHERE: ${profile.atmosphere}
+
+CRITICAL SCENE RULES:
+1. Every scene MUST name a specific interior location within this event world (not just "the event" — name the actual space: the bar, the photo booth, the stage, the back corridor, the VIP pod, the entrance arch, etc.)
+2. Props must be IN HANDS, ON SURFACES IN FRONT OF FIGURES, or physically touching figures — not just in the background
+3. The environment must fill ALL FOUR EDGES of the frame — ceiling element above, floor surface below, walls/structures left and right
+4. Figures must be at DIFFERENT HEIGHTS — mix of seated/crouching/standing or leaning at different levels
+5. Every figure must be DOING something with a specific named prop — holding, examining, pressing against, sipping from, reaching toward
 
 FIGURES: ${spatialNote}
-FRAMING: ${framingRule}
+FRAMING RULE: ${framingRule}
 
-Each scene must: name specific world props, place figures at exact positions, describe physical contact with environment.
-
-Respond ONLY with this exact JSON (no markdown):
-{"tender":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"chaotic":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"editorial":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"candid":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]},"unexpected":{"title":"string","description":"2 sentences max","pose":"body positions only","props":["prop1","prop2"]}}`;
+Respond ONLY with valid JSON, no markdown, no extra text:
+{"tender":{"title":"short evocative title","description":"2-3 sentences: name the specific location, describe each figure's physical interaction with a named prop, describe the environment filling all four frame edges","pose":"exact body positions and prop interactions for all figures","props":["specific prop 1","specific prop 2","specific prop 3"]},"chaotic":{"title":"string","description":"string","pose":"string","props":["p1","p2","p3"]},"editorial":{"title":"string","description":"string","pose":"string","props":["p1","p2","p3"]},"candid":{"title":"string","description":"string","pose":"string","props":["p1","p2","p3"]},"unexpected":{"title":"string","description":"string","pose":"string","props":["p1","p2","p3"]}}`;
 }
 
 // Rewrite scene description for tight crops — strip full-body language
